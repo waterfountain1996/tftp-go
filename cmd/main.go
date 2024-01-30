@@ -2,8 +2,13 @@ package main
 
 import (
 	"log"
+
+	"github.com/waterfountain1996/tftp-go"
 )
 
 func main() {
-	log.Println("Hello, world!")
+	server := tftp.NewServer()
+	if err := server.ListenAndServe(":6969"); err != nil {
+		log.Fatal(err)
+	}
 }
