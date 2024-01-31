@@ -8,10 +8,12 @@ import (
 
 func startSender(src io.Reader, conn io.ReadWriter) error {
 	var (
-		block = new(atomic.Uint32)
-		buf   = make([]byte, 512)
-		atEOF = false
-		ackCh = make(chan bool)
+		block    = new(atomic.Uint32)
+		buf      = make([]byte, 512)
+		atEOF    = false
+		ackCh    = make(chan bool)
+		timeout  = 3 * time.Second
+		maxTries = 5
 	)
 
 	block.Store(1)
@@ -57,8 +59,9 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 			Data:  buf[:n],
 		}
 
+		var numTries int
 	Retransmit:
-		for {
+		for numTries = 0; numTries < maxTries; numTries++ {
 			if _, err := conn.Write(pkt.Bytes()); err != nil {
 				return err
 			}
@@ -66,8 +69,12 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 			select {
 			case <-ackCh:
 				break Retransmit
-			case <-time.After(3 * time.Second):
+			case <-time.After(timeout):
 			}
+		}
+
+		if numTries >= maxTries {
+			return nil
 		}
 	}
 
