@@ -72,17 +72,24 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 	defer conn.Close()
 
-	pw := newUDPPacketWriter(conn)
+	// pw := newUDPPacketWriter(conn)
 
 	if req.IsWrite {
-		pkt := newErrorPacket(errIllegalOp, "operating in read-only mode")
-		if err := pw.Write(pkt); err != nil {
-			// TODO: Log error
-		}
-		return
+		s.handleReceive(req.Filename, conn)
+		// pkt := newErrorPacket(errIllegalOp, "operating in read-only mode")
+		// if err := pw.Write(pkt); err != nil {
+		// 	// TODO: Log error
+		// }
+		// return
+	} else {
+		s.handleSend(req.Filename, conn)
 	}
+}
 
-	f, err := os.Open(req.Filename)
+func (s *Server) handleSend(filename string, conn net.Conn) {
+	pw := newUDPPacketWriter(conn)
+
+	f, err := os.Open(filename)
 	if err != nil {
 		var pkt *errorPacket
 		switch {
@@ -121,6 +128,23 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 
 	if err := startSender(f, conn); err != nil {
+		return
+	}
+}
+
+func (s *Server) handleReceive(filename string, conn net.Conn) {
+	pw := newUDPPacketWriter(conn)
+
+	f, err := os.Create(filename)
+	if err != nil {
+		err, _ := err.(*os.PathError)
+		if err := pw.Write(newErrorPacket(errUndefined, err.Err.Error())); err != nil {
+			// TODO: Log error
+		}
+	}
+	defer f.Close()
+
+	if err := startReceiver(f, conn); err != nil {
 		return
 	}
 }
