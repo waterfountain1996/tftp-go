@@ -9,6 +9,7 @@ import (
 func startSender(src io.Reader, conn io.ReadWriter) error {
 	var (
 		pw       = newUDPPacketWriter(conn)
+		pr       = newUDPPacketReader(conn, 512)
 		block    = new(atomic.Uint32)
 		buf      = make([]byte, 512)
 		atEOF    = false
@@ -20,15 +21,8 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 	block.Store(1)
 
 	go func() {
-		b := make([]byte, 4)
 		for {
-			n, err := conn.Read(b)
-			if err != nil {
-				// TODO: Handle
-				return
-			}
-
-			pkt, err := parsePacket(b[:n])
+			pkt, err := pr.Read()
 			if err != nil {
 				// TODO: Terminate
 				return
