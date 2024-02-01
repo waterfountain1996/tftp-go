@@ -72,9 +72,11 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 	defer conn.Close()
 
+	pw := newUDPPacketWriter(conn)
+
 	if req.IsWrite {
 		pkt := newErrorPacket(errIllegalOp, "operating in read-only mode")
-		if _, err := conn.Write(pkt.Bytes()); err != nil {
+		if err := pw.Write(pkt); err != nil {
 			// TODO: Log error
 		}
 		return
@@ -93,7 +95,7 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 			pkt = newErrorPacket(errUndefined, "internal error")
 		}
 
-		if _, err := conn.Write(pkt.Bytes()); err != nil {
+		if err := pw.Write(pkt); err != nil {
 			// TODO: Log error
 		}
 		return
@@ -104,7 +106,7 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	if err != nil {
 		// TODO: Log error
 		pkt := newErrorPacket(errUndefined, "internal error")
-		if _, err := conn.Write(pkt.Bytes()); err != nil {
+		if err := pw.Write(pkt); err != nil {
 			// TODO: Log error
 		}
 		return
@@ -112,7 +114,7 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 
 	if stat.IsDir() {
 		pkt := newErrorPacket(errUndefined, "not a file")
-		if _, err := conn.Write(pkt.Bytes()); err != nil {
+		if err := pw.Write(pkt); err != nil {
 			// TODO: Log error
 		}
 		return

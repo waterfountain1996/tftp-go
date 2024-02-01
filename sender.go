@@ -8,6 +8,7 @@ import (
 
 func startSender(src io.Reader, conn io.ReadWriter) error {
 	var (
+		pw       = newUDPPacketWriter(conn)
 		block    = new(atomic.Uint32)
 		buf      = make([]byte, 512)
 		atEOF    = false
@@ -62,7 +63,7 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 		var numTries int
 	Retransmit:
 		for numTries = 0; numTries < maxTries; numTries++ {
-			if _, err := conn.Write(pkt.Bytes()); err != nil {
+			if err := pw.Write(pkt); err != nil {
 				return err
 			}
 
