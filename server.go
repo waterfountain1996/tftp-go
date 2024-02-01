@@ -4,13 +4,32 @@ import (
 	"errors"
 	"net"
 	"os"
+	"time"
 )
 
+type serverOpts struct {
+	Blocksize  int
+	Timeout    time.Duration
+	MaxRetries int
+}
+
+func defaultServerOpts() *serverOpts {
+	return &serverOpts{
+		Blocksize:  512,
+		Timeout:    3 * time.Second,
+		MaxRetries: 5,
+	}
+}
+
 type Server struct {
+	opts *serverOpts
 }
 
 func NewServer() *Server {
-	return &Server{}
+	o := defaultServerOpts()
+	return &Server{
+		opts: o,
+	}
 }
 
 func (s *Server) ListenAndServe(listenAddr string) error {
