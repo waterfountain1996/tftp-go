@@ -8,8 +8,8 @@ import (
 
 func startSender(src io.Reader, conn io.ReadWriter) error {
 	var (
-		pw       = newUDPPacketWriter(conn)
-		pr       = newUDPPacketReader(conn, 512)
+		pw       = newTracingPacketWriter(newUDPPacketWriter(conn))
+		pr       = newTracingPacketReader(newUDPPacketReader(conn, 512))
 		block    = new(atomic.Uint32)
 		buf      = make([]byte, 512)
 		atEOF    = false
@@ -71,6 +71,8 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 		if numTries >= maxTries {
 			return nil
 		}
+
+		block.Add(1)
 	}
 
 	return nil

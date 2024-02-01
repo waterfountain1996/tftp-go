@@ -16,6 +16,7 @@ var (
 type packet interface {
 	Op() opcode
 	Bytes() []byte
+	String() string
 }
 
 type request struct {
@@ -42,6 +43,10 @@ func (r request) Bytes() []byte {
 	return b.Bytes()
 }
 
+func (r request) String() string {
+	return fmt.Sprintf("%s <file: %s, mode: %s>", r.Op(), r.Filename, r.Mode)
+}
+
 type dataPacket struct {
 	Block uint16
 	Data  []byte
@@ -59,6 +64,10 @@ func (p dataPacket) Bytes() []byte {
 	return b.Bytes()
 }
 
+func (p dataPacket) String() string {
+	return fmt.Sprintf("%s <block: %d, size: %d>", p.Op(), p.Block, len(p.Data))
+}
+
 type ackPacket struct {
 	Block uint16
 }
@@ -72,6 +81,10 @@ func (p ackPacket) Bytes() []byte {
 	binary.Write(&b, binary.BigEndian, p.Op())
 	binary.Write(&b, binary.BigEndian, p.Block)
 	return b.Bytes()
+}
+
+func (p ackPacket) String() string {
+	return fmt.Sprintf("%s <block: %d>", p.Op(), p.Block)
 }
 
 type errorPacket struct {
@@ -97,6 +110,10 @@ func (p errorPacket) Bytes() []byte {
 	b.WriteString(p.Message)
 	b.WriteByte(0)
 	return b.Bytes()
+}
+
+func (p errorPacket) String() string {
+	return fmt.Sprintf("%s <code: %d, message: %s>", p.Op(), p.Code, p.Message)
 }
 
 func parsePacket(p []byte) (packet, error) {
