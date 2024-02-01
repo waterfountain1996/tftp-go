@@ -79,6 +79,13 @@ type errorPacket struct {
 	Message string
 }
 
+func newErrorPacket(code uint16, message string) *errorPacket {
+	return &errorPacket{
+		Code:    code,
+		Message: message,
+	}
+}
+
 func (p errorPacket) Op() opcode {
 	return opERROR
 }

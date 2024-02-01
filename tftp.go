@@ -10,3 +10,14 @@ const (
 	opERROR
 	opOACK
 )
+
+const (
+	errUndefined uint16 = iota
+	errNotFound
+	errPermission
+	errDiskFull
+	errIllegalOp
+	errUnknownTID
+	errAlreadyExists
+	errNoSuchUser
+)
