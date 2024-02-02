@@ -6,16 +6,20 @@ import (
 	"time"
 )
 
-func startSender(src io.Reader, conn io.ReadWriter) error {
+type transferOpts struct {
+	Blocksize  int
+	Timeout    time.Duration
+	MaxRetries int
+}
+
+func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 	var (
-		pw       = newTracingPacketWriter(newUDPPacketWriter(conn))
-		pr       = newTracingPacketReader(newUDPPacketReader(conn, 512))
-		block    = new(atomic.Uint32)
-		buf      = make([]byte, 512)
-		atEOF    = false
-		ackCh    = make(chan bool)
-		timeout  = 3 * time.Second
-		maxTries = 5
+		pw    = newTracingPacketWriter(newUDPPacketWriter(conn))
+		pr    = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize))
+		block = new(atomic.Uint32)
+		buf   = make([]byte, opts.Blocksize)
+		atEOF = false
+		ackCh = make(chan bool)
 	)
 
 	block.Store(1)
@@ -56,7 +60,7 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 
 		var numTries int
 	Retransmit:
-		for numTries = 0; numTries < maxTries; numTries++ {
+		for numTries = 0; numTries < opts.MaxRetries; numTries++ {
 			if err := pw.Write(pkt); err != nil {
 				return err
 			}
@@ -64,11 +68,11 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 			select {
 			case <-ackCh:
 				break Retransmit
-			case <-time.After(timeout):
+			case <-time.After(opts.Timeout):
 			}
 		}
 
-		if numTries >= maxTries {
+		if numTries >= opts.MaxRetries {
 			return nil
 		}
 
@@ -78,15 +82,13 @@ func startSender(src io.Reader, conn io.ReadWriter) error {
 	return nil
 }
 
-func startReceiver(dst io.Writer, conn io.ReadWriter) error {
+func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error {
 	var (
-		pw       = newTracingPacketWriter(newUDPPacketWriter(conn))
-		pr       = newTracingPacketReader(newUDPPacketReader(conn, 512+4))
-		dataCh   = make(chan []byte)
-		block    = new(atomic.Uint32)
-		timeout  = 3 * time.Second
-		maxTries = 5
-		atEOF    = false
+		pw     = newTracingPacketWriter(newUDPPacketWriter(conn))
+		pr     = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize+4))
+		dataCh = make(chan []byte)
+		block  = new(atomic.Uint32)
+		atEOF  = false
 	)
 
 	go func() {
@@ -116,7 +118,7 @@ Outer:
 		)
 
 	Retransmit:
-		for numTries = 0; numTries < maxTries; numTries++ {
+		for numTries = 0; numTries < opts.MaxRetries; numTries++ {
 			ack := ackPacket{
 				Block: uint16(block.Load()),
 			}
@@ -131,11 +133,11 @@ Outer:
 			select {
 			case buf = <-dataCh:
 				break Retransmit
-			case <-time.After(timeout):
+			case <-time.After(opts.Timeout):
 			}
 		}
 
-		if numTries >= maxTries {
+		if numTries >= opts.MaxRetries {
 			// TODO: Send proper error
 			return nil
 		}
@@ -144,7 +146,7 @@ Outer:
 			return err
 		}
 
-		if len(buf) < 512 {
+		if len(buf) < opts.Blocksize {
 			atEOF = true
 		}
 

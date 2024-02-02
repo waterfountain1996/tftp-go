@@ -127,7 +127,13 @@ func (s *Server) handleSend(filename string, conn net.Conn) {
 		return
 	}
 
-	if err := startSender(f, conn); err != nil {
+	opts := &transferOpts{
+		Blocksize:  s.opts.Blocksize,
+		Timeout:    s.opts.Timeout,
+		MaxRetries: s.opts.MaxRetries,
+	}
+
+	if err := startSender(f, conn, opts); err != nil {
 		return
 	}
 }
@@ -144,7 +150,13 @@ func (s *Server) handleReceive(filename string, conn net.Conn) {
 	}
 	defer f.Close()
 
-	if err := startReceiver(f, conn); err != nil {
+	opts := &transferOpts{
+		Blocksize:  s.opts.Blocksize,
+		Timeout:    s.opts.Timeout,
+		MaxRetries: s.opts.MaxRetries,
+	}
+
+	if err := startReceiver(f, conn, opts); err != nil {
 		return
 	}
 }
