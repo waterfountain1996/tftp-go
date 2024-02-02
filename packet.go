@@ -19,10 +19,20 @@ type packet interface {
 	String() string
 }
 
+type requestOpt struct {
+	Name  string
+	Value string
+}
+
+func (o requestOpt) String() string {
+	return fmt.Sprintf("%s: %s", o.Name, o.Value)
+}
+
 type request struct {
 	Filename string
 	Mode     string
 	IsWrite  bool
+	Opts     []requestOpt
 }
 
 func (r request) Op() opcode {
@@ -44,7 +54,21 @@ func (r request) Bytes() []byte {
 }
 
 func (r request) String() string {
-	return fmt.Sprintf("%s <file: %s, mode: %s>", r.Op(), r.Filename, r.Mode)
+	s := fmt.Sprintf("%s <file: %s, mode: %s", r.Op(), r.Filename, r.Mode)
+
+	if len(r.Opts) > 0 {
+		opts := make([]string, len(r.Opts))
+		for i, o := range r.Opts {
+			opts[i] = o.String()
+		}
+
+		optString := strings.Join(opts, ", ")
+		s += fmt.Sprintf(", opts: <%s>", optString)
+	}
+
+	s += ">"
+
+	return s
 }
 
 type dataPacket struct {
@@ -130,9 +154,15 @@ func parsePacket(p []byte) (packet, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid request", errInvalidPacket)
 		}
-
 		p = p[idx:]
-		mode, _, err := readString(p)
+
+		mode, idx, err := readString(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid request", errInvalidPacket)
+		}
+		p = p[idx:]
+
+		opts, err := readOpts(p)
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid request", errInvalidPacket)
 		}
@@ -141,6 +171,7 @@ func parsePacket(p []byte) (packet, error) {
 			Filename: filename,
 			Mode:     strings.ToLower(mode),
 			IsWrite:  op == opWRQ,
+			Opts:     opts,
 		}
 		return req, nil
 	case opDATA:
@@ -181,6 +212,36 @@ func parsePacket(p []byte) (packet, error) {
 	default:
 		return nil, fmt.Errorf("%w: unknown op: %d", errInvalidPacket, op)
 	}
+}
+
+func readOpts(p []byte) ([]requestOpt, error) {
+	if len(p) == 0 {
+		return nil, nil
+	}
+
+	opts := []requestOpt{}
+
+	for len(p) > 0 {
+		name, idx, err := readString(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid request", errInvalidPacket)
+		}
+		p = p[idx:]
+
+		value, idx, err := readString(p)
+		if err != nil {
+			return nil, fmt.Errorf("%w: invalid request", errInvalidPacket)
+		}
+		p = p[idx:]
+
+		o := requestOpt{
+			Name:  name,
+			Value: value,
+		}
+		opts = append(opts, o)
+	}
+
+	return opts, nil
 }
 
 func readString(p []byte) (string, int, error) {
