@@ -37,4 +37,5 @@ const (
 	errUnknownTID
 	errAlreadyExists
 	errNoSuchUser
+	errOptReject
 )
