@@ -97,34 +97,20 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 	defer f.Close()
 
+	opts := &transferOpts{
+		Blocksize:  s.opts.Blocksize,
+		Timeout:    s.opts.Timeout,
+		MaxRetries: s.opts.MaxRetries,
+	}
+
 	if req.IsWrite {
-		s.handleReceive(f, conn)
+		err = startReceiver(f, conn, opts)
 	} else {
-		s.handleSend(f, conn)
-	}
-}
-
-func (s *Server) handleSend(f io.Reader, conn net.Conn) {
-	opts := &transferOpts{
-		Blocksize:  s.opts.Blocksize,
-		Timeout:    s.opts.Timeout,
-		MaxRetries: s.opts.MaxRetries,
+		err = startSender(f, conn, opts)
 	}
 
-	if err := startSender(f, conn, opts); err != nil {
-		return
-	}
-}
-
-func (s *Server) handleReceive(f io.Writer, conn net.Conn) {
-	opts := &transferOpts{
-		Blocksize:  s.opts.Blocksize,
-		Timeout:    s.opts.Timeout,
-		MaxRetries: s.opts.MaxRetries,
-	}
-
-	if err := startReceiver(f, conn, opts); err != nil {
-		return
+	if err != nil {
+		// TODO: Log error
 	}
 }
 
