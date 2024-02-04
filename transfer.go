@@ -1,6 +1,7 @@
 package tftp
 
 import (
+	"bufio"
 	"io"
 	"sync/atomic"
 	"time"
@@ -84,6 +85,7 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 
 func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error {
 	var (
+		w      = bufio.NewWriter(dst)
 		pw     = newTracingPacketWriter(newUDPPacketWriter(conn))
 		pr     = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize+4))
 		dataCh = make(chan []byte)
@@ -142,7 +144,7 @@ Outer:
 			return nil
 		}
 
-		if _, err := dst.Write(buf); err != nil {
+		if _, err := w.Write(buf); err != nil {
 			return err
 		}
 
@@ -152,6 +154,8 @@ Outer:
 
 		block.Add(1)
 	}
+
+	w.Flush()
 
 	return nil
 }
