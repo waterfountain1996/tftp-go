@@ -235,7 +235,7 @@ func readOpts(p []byte) ([]requestOpt, error) {
 		p = p[idx:]
 
 		o := requestOpt{
-			Name:  name,
+			Name:  strings.ToLower(name),
 			Value: value,
 		}
 		opts = append(opts, o)
