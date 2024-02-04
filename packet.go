@@ -140,6 +140,10 @@ func (p errorPacket) String() string {
 	return fmt.Sprintf("%s <code: %d, message: %s>", p.Op(), p.Code, p.Message)
 }
 
+func (p errorPacket) Error() string {
+	return p.Message
+}
+
 func parsePacket(p []byte) (packet, error) {
 	if len(p) < 2 {
 		return nil, fmt.Errorf("%w: too short", errInvalidPacket)

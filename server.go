@@ -2,6 +2,7 @@ package tftp
 
 import (
 	"errors"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -72,61 +73,38 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 	defer conn.Close()
 
-	// pw := newUDPPacketWriter(conn)
-
-	if req.IsWrite {
-		s.handleReceive(req.Filename, conn)
-		// pkt := newErrorPacket(errIllegalOp, "operating in read-only mode")
-		// if err := pw.Write(pkt); err != nil {
-		// 	// TODO: Log error
-		// }
-		// return
-	} else {
-		s.handleSend(req.Filename, conn)
-	}
-}
-
-func (s *Server) handleSend(filename string, conn net.Conn) {
 	pw := newUDPPacketWriter(conn)
 
-	f, err := os.Open(filename)
+	f, err := s.openFile(req.Filename, req.IsWrite)
 	if err != nil {
-		var pkt *errorPacket
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			pkt = newErrorPacket(errNotFound, "file not found")
-		case errors.Is(err, os.ErrPermission):
-			pkt = newErrorPacket(errPermission, "permission denied")
-		default:
-			// TODO: Log error
-			pkt = newErrorPacket(errUndefined, "internal error")
+		var (
+			pkt     *errorPacket
+			pathErr *os.PathError
+		)
+
+		if errors.As(err, &pathErr) {
+			// TODO: Log err
+			pkt = newErrorPacket(errUndefined, "")
+		} else {
+			pkt, _ = err.(*errorPacket)
 		}
 
 		if err := pw.Write(pkt); err != nil {
-			// TODO: Log error
+			// TODO: log error
 		}
+
 		return
 	}
 	defer f.Close()
 
-	stat, err := f.Stat()
-	if err != nil {
-		// TODO: Log error
-		pkt := newErrorPacket(errUndefined, "internal error")
-		if err := pw.Write(pkt); err != nil {
-			// TODO: Log error
-		}
-		return
+	if req.IsWrite {
+		s.handleReceive(f, conn)
+	} else {
+		s.handleSend(f, conn)
 	}
+}
 
-	if stat.IsDir() {
-		pkt := newErrorPacket(errUndefined, "not a file")
-		if err := pw.Write(pkt); err != nil {
-			// TODO: Log error
-		}
-		return
-	}
-
+func (s *Server) handleSend(f io.Reader, conn net.Conn) {
 	opts := &transferOpts{
 		Blocksize:  s.opts.Blocksize,
 		Timeout:    s.opts.Timeout,
@@ -138,18 +116,7 @@ func (s *Server) handleSend(filename string, conn net.Conn) {
 	}
 }
 
-func (s *Server) handleReceive(filename string, conn net.Conn) {
-	pw := newUDPPacketWriter(conn)
-
-	f, err := os.Create(filename)
-	if err != nil {
-		err, _ := err.(*os.PathError)
-		if err := pw.Write(newErrorPacket(errUndefined, err.Err.Error())); err != nil {
-			// TODO: Log error
-		}
-	}
-	defer f.Close()
-
+func (s *Server) handleReceive(f io.Writer, conn net.Conn) {
 	opts := &transferOpts{
 		Blocksize:  s.opts.Blocksize,
 		Timeout:    s.opts.Timeout,
@@ -159,4 +126,45 @@ func (s *Server) handleReceive(filename string, conn net.Conn) {
 	if err := startReceiver(f, conn, opts); err != nil {
 		return
 	}
+}
+
+func (s *Server) openFile(filename string, forWriting bool) (io.ReadWriteCloser, error) {
+	var (
+		f      *os.File
+		err    error
+		opener func(string) (*os.File, error)
+	)
+
+	if forWriting {
+		opener = func(filename string) (*os.File, error) {
+			return os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0666)
+		}
+	} else {
+		opener = os.Open
+	}
+
+	f, err = opener(filename)
+	if err != nil {
+		switch {
+		case os.IsExist(err):
+			err = newErrorPacket(errAlreadyExists, "file already exists")
+		case os.IsNotExist(err):
+			err = newErrorPacket(errNotFound, "file not found")
+		case os.IsPermission(err):
+			err = newErrorPacket(errPermission, "permission denied")
+		}
+
+		return nil, err
+	}
+
+	stat, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	if stat.IsDir() {
+		return nil, newErrorPacket(errUndefined, "is a directory")
+	}
+
+	return f, err
 }
