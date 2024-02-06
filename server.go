@@ -72,6 +72,10 @@ func (s *Server) Serve(pc net.PacketConn) error {
 			continue
 		}
 
+		if s.opts.Trace {
+			traceReceive(req)
+		}
+
 		go s.handleRequest(req, addr)
 	}
 }
