@@ -8,10 +8,13 @@ import (
 	"time"
 )
 
+type OptFunc func(*serverOpts)
+
 type serverOpts struct {
 	Blocksize  int
 	Timeout    time.Duration
 	MaxRetries int
+	Trace      bool
 }
 
 func defaultServerOpts() *serverOpts {
@@ -22,12 +25,20 @@ func defaultServerOpts() *serverOpts {
 	}
 }
 
+func WithTracing(opts *serverOpts) {
+	opts.Trace = true
+}
+
 type Server struct {
 	opts *serverOpts
 }
 
-func NewServer() *Server {
+func NewServer(opts ...OptFunc) *Server {
 	o := defaultServerOpts()
+	for _, f := range opts {
+		f(o)
+	}
+
 	return &Server{
 		opts: o,
 	}
@@ -101,6 +112,7 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 		Blocksize:  s.opts.Blocksize,
 		Timeout:    s.opts.Timeout,
 		MaxRetries: s.opts.MaxRetries,
+		Trace:      s.opts.Trace,
 	}
 
 	if req.IsWrite {

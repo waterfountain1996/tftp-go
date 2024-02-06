@@ -11,17 +11,23 @@ type transferOpts struct {
 	Blocksize  int
 	Timeout    time.Duration
 	MaxRetries int
+	Trace      bool
 }
 
 func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 	var (
-		pw    = newTracingPacketWriter(newUDPPacketWriter(conn), traceSend)
-		pr    = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize), traceReceive)
-		block = new(atomic.Uint32)
-		buf   = make([]byte, opts.Blocksize)
-		atEOF = false
-		ackCh = make(chan bool)
+		pw    packetWriter = newUDPPacketWriter(conn)
+		pr    packetReader = newUDPPacketReader(conn, opts.Blocksize)
+		block              = new(atomic.Uint32)
+		buf                = make([]byte, opts.Blocksize)
+		atEOF              = false
+		ackCh              = make(chan bool)
 	)
+
+	if opts.Trace {
+		pw = newTracingPacketWriter(pw, traceSend)
+		pr = newTracingPacketReader(pr, traceReceive)
+	}
 
 	block.Store(1)
 
@@ -85,13 +91,18 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 
 func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error {
 	var (
-		w      = bufio.NewWriter(dst)
-		pw     = newTracingPacketWriter(newUDPPacketWriter(conn), traceSend)
-		pr     = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize+4), traceReceive)
-		dataCh = make(chan []byte)
-		block  = new(atomic.Uint32)
-		atEOF  = false
+		w                   = bufio.NewWriter(dst)
+		pw     packetWriter = newUDPPacketWriter(conn)
+		pr     packetReader = newUDPPacketReader(conn, opts.Blocksize+4)
+		dataCh              = make(chan []byte)
+		block               = new(atomic.Uint32)
+		atEOF               = false
 	)
+
+	if opts.Trace {
+		pw = newTracingPacketWriter(pw, traceSend)
+		pr = newTracingPacketReader(pr, traceReceive)
+	}
 
 	go func() {
 		for {

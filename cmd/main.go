@@ -14,7 +14,13 @@ var (
 func main() {
 	pflag.Parse()
 
-	server := tftp.NewServer()
+	opts := []tftp.OptFunc{}
+
+	if *trace {
+		opts = append(opts, tftp.WithTracing)
+	}
+
+	server := tftp.NewServer(opts...)
 	if err := server.ListenAndServe(":6969"); err != nil {
 		log.Fatal(err)
 	}
