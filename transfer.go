@@ -15,8 +15,8 @@ type transferOpts struct {
 
 func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 	var (
-		pw    = newTracingPacketWriter(newUDPPacketWriter(conn))
-		pr    = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize))
+		pw    = newTracingPacketWriter(newUDPPacketWriter(conn), traceSend)
+		pr    = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize), traceReceive)
 		block = new(atomic.Uint32)
 		buf   = make([]byte, opts.Blocksize)
 		atEOF = false
@@ -86,8 +86,8 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error {
 	var (
 		w      = bufio.NewWriter(dst)
-		pw     = newTracingPacketWriter(newUDPPacketWriter(conn))
-		pr     = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize+4))
+		pw     = newTracingPacketWriter(newUDPPacketWriter(conn), traceSend)
+		pr     = newTracingPacketReader(newUDPPacketReader(conn, opts.Blocksize+4), traceReceive)
 		dataCh = make(chan []byte)
 		block  = new(atomic.Uint32)
 		atEOF  = false

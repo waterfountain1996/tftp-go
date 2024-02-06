@@ -1,8 +1,9 @@
 package tftp
 
 import (
+	"fmt"
 	"io"
-	"log"
+	"os"
 )
 
 type packetReader interface {
@@ -32,18 +33,20 @@ func (r *udpPacketReader) Read() (p packet, err error) {
 
 type tracingPacketReader struct {
 	packetReader
+	trace traceFunc
 }
 
-func newTracingPacketReader(r packetReader) *tracingPacketReader {
+func newTracingPacketReader(r packetReader, trace traceFunc) *tracingPacketReader {
 	return &tracingPacketReader{
 		packetReader: r,
+		trace:        trace,
 	}
 }
 
 func (r *tracingPacketReader) Read() (p packet, err error) {
 	p, err = r.packetReader.Read()
 	if err == nil {
-		log.Printf("received %s\n", p)
+		r.trace(p)
 	}
 	return
 }
@@ -69,18 +72,30 @@ func (w *udpPacketWriter) Write(p packet) error {
 
 type tracingPacketWriter struct {
 	packetWriter
+	trace traceFunc
 }
 
-func newTracingPacketWriter(w packetWriter) *tracingPacketWriter {
+func newTracingPacketWriter(w packetWriter, trace traceFunc) *tracingPacketWriter {
 	return &tracingPacketWriter{
 		packetWriter: w,
+		trace:        trace,
 	}
 }
 
 func (w *tracingPacketWriter) Write(p packet) error {
 	err := w.packetWriter.Write(p)
 	if err == nil {
-		log.Printf("sent %s\n", p)
+		w.trace(p)
 	}
 	return err
+}
+
+type traceFunc func(p packet)
+
+func traceSend(p packet) {
+	fmt.Fprintf(os.Stderr, "sent %s\n", p)
+}
+
+func traceReceive(p packet) {
+	fmt.Fprintf(os.Stderr, "received %s\n", p)
 }
