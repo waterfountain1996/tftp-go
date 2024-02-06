@@ -2,10 +2,13 @@ package tftp
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"sync/atomic"
 	"time"
 )
+
+var errClientTimeout = errors.New("tftp: client timeout")
 
 type transferOpts struct {
 	Blocksize  int
@@ -80,7 +83,7 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 		}
 
 		if numTries >= opts.MaxRetries {
-			return nil
+			return errClientTimeout
 		}
 
 		block.Add(1)
@@ -151,8 +154,7 @@ Outer:
 		}
 
 		if numTries >= opts.MaxRetries {
-			// TODO: Send proper error
-			return nil
+			return errClientTimeout
 		}
 
 		if _, err := w.Write(buf); err != nil {
