@@ -141,7 +141,7 @@ func (p errorPacket) String() string {
 }
 
 func (p errorPacket) Error() string {
-	return p.Message
+	return p.String()
 }
 
 func parsePacket(p []byte) (packet, error) {
