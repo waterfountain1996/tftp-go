@@ -31,17 +31,19 @@ func WithTracing(opts *serverOpts) {
 }
 
 type Server struct {
-	opts *serverOpts
+	logger *log.Logger
+	opts   *serverOpts
 }
 
-func NewServer(opts ...OptFunc) *Server {
+func NewServer(logger *log.Logger, opts ...OptFunc) *Server {
 	o := defaultServerOpts()
 	for _, f := range opts {
 		f(o)
 	}
 
 	return &Server{
-		opts: o,
+		logger: logger,
+		opts:   o,
 	}
 }
 
@@ -84,7 +86,7 @@ func (s *Server) Serve(pc net.PacketConn) error {
 func (s *Server) handleRequest(req *request, addr net.Addr) {
 	conn, err := net.Dial("udp", addr.String())
 	if err != nil {
-		// TODO: log error
+		s.logger.Printf("udp dial: %s\n", err)
 		return
 	}
 	defer conn.Close()
@@ -99,14 +101,14 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 		)
 
 		if errors.As(err, &pathErr) {
-			// TODO: Log err
+			s.logger.Printf("file open: %s\n", err)
 			pkt = newErrorPacket(errUndefined, "")
 		} else {
 			pkt, _ = err.(*errorPacket)
 		}
 
 		if err := pw.Write(pkt); err != nil {
-			// TODO: log error
+			s.logger.Printf("write: %s\n", err)
 		}
 
 		return
@@ -131,11 +133,11 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 
 		switch {
 		case errors.Is(err, errClientTimeout):
-			log.Println("client timeout")
+			s.logger.Println("client timeout")
 		case errors.Is(err, errInvalidPacket):
-			log.Println("invalid packet from client")
+			s.logger.Println("invalid packet from client")
 		case errors.As(err, &errPkt):
-			log.Printf("error from client: %s\n", err)
+			s.logger.Printf("error from client: %s\n", err)
 		default:
 			switch {
 			case os.IsPermission(err):
@@ -145,7 +147,7 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 			}
 
 			if err := pw.Write(errPkt); err != nil {
-				log.Printf("write: %s\n", err)
+				s.logger.Printf("write: %s\n", err)
 			}
 		}
 	}
