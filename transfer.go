@@ -24,7 +24,8 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 		block              = new(atomic.Uint32)
 		buf                = make([]byte, opts.Blocksize)
 		atEOF              = false
-		ackCh              = make(chan bool)
+		ackCh              = make(chan bool, 1)
+		errCh              = make(chan error, 1)
 	)
 
 	if opts.Trace {
@@ -35,10 +36,15 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 	block.Store(1)
 
 	go func() {
+		defer func() {
+			close(ackCh)
+			close(errCh)
+		}()
+
 		for {
 			pkt, err := pr.Read()
 			if err != nil {
-				// TODO: Terminate
+				errCh <- err
 				return
 			}
 
@@ -48,7 +54,8 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 					ackCh <- true
 				}
 			case *errorPacket:
-				// TODO: Handle
+				errCh <- pkt
+				return
 			}
 		}
 	}()
@@ -78,6 +85,8 @@ func startSender(src io.Reader, conn io.ReadWriter, opts *transferOpts) error {
 			select {
 			case <-ackCh:
 				break Retransmit
+			case err := <-errCh:
+				return err
 			case <-time.After(opts.Timeout):
 			}
 		}
@@ -97,7 +106,8 @@ func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error 
 		w                   = bufio.NewWriter(dst)
 		pw     packetWriter = newUDPPacketWriter(conn)
 		pr     packetReader = newUDPPacketReader(conn, opts.Blocksize+4)
-		dataCh              = make(chan []byte)
+		dataCh              = make(chan []byte, 1)
+		errCh               = make(chan error, 1)
 		block               = new(atomic.Uint32)
 		atEOF               = false
 	)
@@ -108,10 +118,15 @@ func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error 
 	}
 
 	go func() {
+		defer func() {
+			close(dataCh)
+			close(errCh)
+		}()
+
 		for {
 			pkt, err := pr.Read()
 			if err != nil {
-				// TODO: Terminate
+				errCh <- err
 				return
 			}
 
@@ -121,7 +136,8 @@ func startReceiver(dst io.Writer, conn io.ReadWriter, opts *transferOpts) error 
 					dataCh <- pkt.Data
 				}
 			case *errorPacket:
-				// TODO: Handle
+				errCh <- pkt
+				return
 			}
 		}
 	}()
@@ -149,6 +165,8 @@ Outer:
 			select {
 			case buf = <-dataCh:
 				break Retransmit
+			case err := <-errCh:
+				return err
 			case <-time.After(opts.Timeout):
 			}
 		}
