@@ -3,6 +3,7 @@ package tftp
 import (
 	"errors"
 	"io"
+	"log"
 	"net"
 	"os"
 	"time"
@@ -126,7 +127,27 @@ func (s *Server) handleRequest(req *request, addr net.Addr) {
 	}
 
 	if err != nil {
-		// TODO: Log error
+		var errPkt *errorPacket
+
+		switch {
+		case errors.Is(err, errClientTimeout):
+			log.Println("client timeout")
+		case errors.Is(err, errInvalidPacket):
+			log.Println("invalid packet from client")
+		case errors.As(err, &errPkt):
+			log.Printf("error from client: %s\n", err)
+		default:
+			switch {
+			case os.IsPermission(err):
+				errPkt = newErrorPacket(errPermission, "permission denied")
+			default:
+				errPkt = newErrorPacket(errUndefined, "internal error")
+			}
+
+			if err := pw.Write(errPkt); err != nil {
+				log.Printf("write: %s\n", err)
+			}
+		}
 	}
 }
 
